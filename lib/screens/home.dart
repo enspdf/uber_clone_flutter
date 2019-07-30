@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:uber_clone_flutter/requests/google_maps_requests.dart';
+import 'package:provider/provider.dart';
+import 'package:uber_clone_flutter/states/app_state.dart';
 
 class MyHomePage extends StatefulWidget {
   final String title;
@@ -27,24 +27,11 @@ class Map extends StatefulWidget {
 }
 
 class _MapState extends State<Map> {
-  GoogleMapController mapController;
-  GoogleMapsServices _googleMapsServices = GoogleMapsServices();
-  TextEditingController locationController = TextEditingController();
-  TextEditingController destinationController = TextEditingController();
-  static LatLng _initialPosition;
-  LatLng _lastPosition = _initialPosition;
-  final Set<Marker> _markers = {};
-  final Set<Polyline> _polyLines = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _getUserLocation();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return _initialPosition == null
+    final appState = Provider.of<AppState>(context);
+
+    return appState.initialPosition == null
         ? Container(
             alignment: Alignment.center,
             child: Center(
@@ -55,15 +42,16 @@ class _MapState extends State<Map> {
             children: <Widget>[
               GoogleMap(
                 initialCameraPosition: CameraPosition(
-                  target: _initialPosition,
+                  target: appState.initialPosition,
                   zoom: 10,
                 ),
-                onMapCreated: onCreated,
+                onMapCreated: appState.onCreated,
                 myLocationEnabled: true,
                 mapType: MapType.normal,
                 compassEnabled: true,
-                markers: _markers,
-                onCameraMove: _onCameraMove,
+                markers: appState.markers,
+                onCameraMove: appState.onCameraMove,
+                polylines: appState.polyLines,
               ),
               Positioned(
                 top: 50,
@@ -85,7 +73,7 @@ class _MapState extends State<Map> {
                   ),
                   child: TextField(
                     cursorColor: Colors.black,
-                    controller: locationController,
+                    controller: appState.locationController,
                     decoration: InputDecoration(
                       icon: Container(
                         margin: EdgeInsets.only(left: 20, top: 5),
@@ -127,7 +115,11 @@ class _MapState extends State<Map> {
                   ),
                   child: TextField(
                     cursorColor: Colors.black,
-                    controller: destinationController,
+                    controller: appState.destinationController,
+                    textInputAction: TextInputAction.go,
+                    onSubmitted: (value) {
+                      appState.sendRequest(value);
+                    },
                     decoration: InputDecoration(
                       icon: Container(
                         margin: EdgeInsets.only(left: 20, top: 5),
@@ -163,91 +155,5 @@ class _MapState extends State<Map> {
         ),*/
             ],
           );
-  }
-
-  void onCreated(GoogleMapController controller) {
-    setState(() {
-      mapController = controller;
-    });
-  }
-
-  void _onCameraMove(CameraPosition position) {
-    setState(() {
-      _lastPosition = position.target;
-    });
-  }
-
-  void _onAddMarkerPressed() {
-    setState(() {
-      _markers.add(
-        Marker(
-          markerId: MarkerId(
-            _lastPosition.toString(),
-          ),
-          position: _lastPosition,
-          infoWindow: InfoWindow(
-            title: 'Remember Here',
-            snippet: 'Good Place',
-          ),
-          icon: BitmapDescriptor.defaultMarker,
-        ),
-      );
-    });
-  }
-
-  List<LatLng> converToLatLng(List points) {
-    List<LatLng> result = <LatLng>[];
-
-    for (int i = 0; i < points.length; i++) {
-      if (i % 2 == 0) {
-        result.add(LatLng(points[i - 1], points[i]));
-      }
-    }
-
-    return result;
-  }
-
-  List decodePoly(String poly) {
-    var list = poly.codeUnits;
-    var lList = List();
-    int index = 0;
-    int len = poly.length;
-    int c = 0;
-
-    do {
-      var shift = 0;
-      int result = 0;
-
-      do {
-        c = list[index] - 63;
-        result |= (c & 0x1F) << (shift * 5);
-        index++;
-        shift++;
-      } while (c >= 32);
-
-      if (result & 1 == 1) {
-        result = ~result;
-      }
-
-      var result1 = (result >> 1) * 0.00001;
-      lList.add(result1);
-    } while (index < len);
-
-    for (var i = 2; i < lList.length; i++) lList[i] += lList[i - 2];
-
-    print(lList.toString());
-
-    return lList;
-  }
-
-  void _getUserLocation() async {
-    Position position = await Geolocator()
-        .getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-    List<Placemark> placeMark = await Geolocator()
-        .placemarkFromCoordinates(position.latitude, position.longitude);
-    setState(() {
-      _initialPosition = LatLng(position.latitude, position.longitude);
-      locationController.text = placeMark[0].name;
-    });
   }
 }
